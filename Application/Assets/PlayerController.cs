@@ -1,7 +1,4 @@
 ﻿using System;
-using System.Collections;
-using System.Linq;
-using System.Timers;
 using UnityEngine;
 
 [System.Serializable]
@@ -31,11 +28,9 @@ public class PlayerController : MonoBehaviour
     private Rigidbody _body;
     private Animator _animator;
     private float _startingLinePosition;
-    private Timer _jumpTimer = new System.Timers.Timer(50);
-
-
     public float startingPositionX;
-    private bool _isInJump = false;
+    [SerializeField] private float jumpCooldown = 0.05f;
+    private float _nextJumpTime;
 
     // Use this for initialization
     private void Start()
@@ -46,15 +41,6 @@ public class PlayerController : MonoBehaviour
 
         _startingLinePosition = transform.position.z;
 
-        _jumpTimer.Elapsed += _jumpTimer_Elapsed;
-        //Debug.Log(_body.velocity.x);
-
-    }
-
-    private void _jumpTimer_Elapsed(object sender, ElapsedEventArgs e)
-    {
-        _jumpTimer.Stop();
-        _isInJump = false;
     }
 
     private void FixedUpdate()
@@ -97,12 +83,11 @@ public class PlayerController : MonoBehaviour
     public void Jump()
     {
         // If on the ground and jump is pressed...
-        if (IsOnGround && !_isInJump)
+        if (IsOnGround && Time.time >= _nextJumpTime)
         {
             // ... add force in upwards.
             _body.AddForce(Vector3.up * 6, ForceMode.Impulse);
-            _isInJump = true;
-            _jumpTimer.Start();
+            _nextJumpTime = Time.time + jumpCooldown;
         }
     }
 

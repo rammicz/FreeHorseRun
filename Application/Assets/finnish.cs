@@ -1,5 +1,6 @@
 ﻿using UnityEngine;
 using System.Collections;
+using UnityEngine.SceneManagement;
 using System;
 
 public class finnish : MonoBehaviour {
@@ -34,6 +35,6 @@ public class finnish : MonoBehaviour {
     IEnumerator RestartInAWhile(int seconds)
     {
         yield return new WaitForSeconds(seconds);
-        Application.LoadLevel(Application.loadedLevel);
+        SceneManager.LoadScene(SceneManager.GetActiveScene().buildIndex);
     }
 }

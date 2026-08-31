@@ -1,0 +1,8 @@
+/Application/.utmp/
+/Application/Build/
+/Application/Builds/
+/Application/Library/
+/Application/Logs/
+/Application/Temp/
+/Application/UserSettings/
+/Application/*.log
