@@ -27,16 +27,26 @@ public class PlayerController : MonoBehaviour
     public Boundary boundary;
     private Rigidbody _body;
     private Animator _animator;
+    private Terrain _terrain;
+    private Vector3 _spawnPosition;
     private float _startingLinePosition;
     public float startingPositionX;
     [SerializeField] private float jumpCooldown = 0.05f;
+    [SerializeField] private float jumpBufferDuration = 0.2f;
+    [SerializeField] private float groundCheckDistance = 1.25f;
+    [SerializeField] private float trackHalfWidth = 4f;
+    [SerializeField] private float respawnDepth = 4f;
     private float _nextJumpTime;
+    private float _jumpRequestExpiresAt;
 
     // Use this for initialization
     private void Start()
     {
         _body = GetComponentInChildren<Rigidbody>();
         _animator = GetComponent<Animator>();
+        _terrain = Terrain.activeTerrain;
+        _spawnPosition = _body.position;
+        _body.collisionDetectionMode = CollisionDetectionMode.ContinuousDynamic;
         int walkhash = Animator.StringToHash("a");
 
         _startingLinePosition = transform.position.z;
@@ -45,6 +55,8 @@ public class PlayerController : MonoBehaviour
 
     private void FixedUpdate()
     {
+        RecoverFromFall();
+
         if (startingPositionX != 0)
         {
             _body.position = new Vector3(transform.position.x + startingPositionX, transform.position.y, transform.position.z);
@@ -62,7 +74,7 @@ public class PlayerController : MonoBehaviour
         float powerHandicap = (360 - Mathf.Abs(360 - _body.rotation.eulerAngles.z)) * 0.02f;
 
         Vector3 power = new Vector3(
-             speed * 4 * (_body.velocity.x >= 5 ? 0 : 1) - powerHandicap,
+             speed * 4 * (_body.linearVelocity.x >= 5 ? 0 : 1) - powerHandicap,
              0,
              positionZ * 5);
 
@@ -75,6 +87,15 @@ public class PlayerController : MonoBehaviour
 
         _body.AddForce(power);
 
+        if (Time.time <= _jumpRequestExpiresAt && IsOnGround && Time.time >= _nextJumpTime)
+        {
+            _body.AddForce(Vector3.up * 6, ForceMode.Impulse);
+            _nextJumpTime = Time.time + jumpCooldown;
+            _jumpRequestExpiresAt = 0;
+        }
+
+        KeepOnTrack();
+
         _body.rotation = Quaternion.Slerp(_body.rotation, Quaternion.Euler(0,
             0,
             0), Time.fixedDeltaTime * 2.3f);
@@ -82,24 +103,50 @@ public class PlayerController : MonoBehaviour
 
     public void Jump()
     {
-        // If on the ground and jump is pressed...
-        if (IsOnGround && Time.time >= _nextJumpTime)
-        {
-            // ... add force in upwards.
-            _body.AddForce(Vector3.up * 6, ForceMode.Impulse);
-            _nextJumpTime = Time.time + jumpCooldown;
-        }
+        _jumpRequestExpiresAt = Time.time + jumpBufferDuration;
     }
 
     private bool IsOnGround
     {
         get
         {
-            Vector3 startcast = new Vector3(transform.position.x, transform.position.y, transform.position.z);
-            Debug.DrawLine(startcast, startcast - (Vector3.up*100));
+            Vector3 startcast = _body.position + Vector3.up * 0.2f;
+            Debug.DrawLine(startcast, startcast - Vector3.up * groundCheckDistance);
 
-            return Physics.Raycast(transform.position, -Vector3.up, 0.01f);
+            return Physics.Raycast(startcast, Vector3.down, groundCheckDistance,
+                Physics.DefaultRaycastLayers, QueryTriggerInteraction.Ignore);
         }
+    }
+
+    private void KeepOnTrack()
+    {
+        Vector3 position = _body.position;
+        float minZ = Mathf.Max(boundary.zMin, _startingLinePosition - trackHalfWidth);
+        float maxZ = Mathf.Min(boundary.zMax, _startingLinePosition + trackHalfWidth);
+        float clampedX = Mathf.Clamp(position.x, boundary.xMin, boundary.xMax);
+        float clampedZ = Mathf.Clamp(position.z, minZ, maxZ);
+
+        if (!Mathf.Approximately(position.x, clampedX) || !Mathf.Approximately(position.z, clampedZ))
+        {
+            _body.position = new Vector3(clampedX, position.y, clampedZ);
+            Vector3 velocity = _body.linearVelocity;
+            velocity.z = 0;
+            _body.linearVelocity = velocity;
+        }
+    }
+
+    private void RecoverFromFall()
+    {
+        if (_terrain == null)
+            return;
+
+        float groundHeight = _terrain.SampleHeight(_body.position) + _terrain.transform.position.y;
+        if (_body.position.y >= groundHeight - respawnDepth)
+            return;
+
+        _body.position = _spawnPosition;
+        _body.linearVelocity = Vector3.zero;
+        _body.angularVelocity = Vector3.zero;
     }
 
     // Update is called once per frame
